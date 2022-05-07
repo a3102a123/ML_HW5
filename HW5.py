@@ -3,11 +3,27 @@ import matplotlib.pyplot as plt
 import scipy
 import scipy.spatial.distance as npd
 from scipy.optimize import minimize
+import csv
+import os
+import libsvm.svmutil as svm
 
 # global variable
 beta = 5
 
 # Gaussian Process
+### read data
+def read_point():
+    f = open("data/input.data","r")
+    X = []
+    Y = []
+    for d in f:
+        d = d.strip()
+        d = d.split(" ")
+        X.append(float(d[0]))
+        Y.append(float(d[1]))
+    X = np.array(X)
+    Y = np.array(Y)
+    return X,Y
 ### optimization
 def optimization(X,Y):
     theta = np.array([1,1])
@@ -31,11 +47,11 @@ def log_li(X,Y):
     noise = np.diag(np.ones(len(X))) * (1 / beta)
     C = covar(X,X,[1,1]) + noise
     C_inv = np.linalg.inv(C)
-    return -np.log(np.linalg.det(C)) / 2 - (Y.T @ C_inv @Y) / 2 - (len(Y)/2*np.log(np.pi * 2))
+    return -( -np.log(np.linalg.det(C)) / 2 - (Y.T @ C_inv @Y) / 2 - (len(Y)/2*np.log(np.pi * 2)))
 
 def log_likelihood(X,Y):
     noise = np.diag(np.ones(len(X))) * (1 / beta)
-    f = lambda x: -np.log(np.linalg.det(covar(X,X,[x[0],x[1]]) + noise)) / 2 - (Y.T @ np.linalg.inv(covar(X,X,[x[0],x[1]]) + noise) @Y) / 2 - (len(Y)/2*np.log(np.pi * 2))
+    f = lambda x: -( -np.log(np.linalg.det(covar(X,X,[x[0],x[1]]) + noise)) / 2 - (Y.T @ np.linalg.inv(covar(X,X,[x[0],x[1]]) + noise) @ Y) / 2 - (len(Y)/2*np.log(np.pi * 2)))
     return f
 
 def covar(X1,X2,theta):
@@ -71,18 +87,26 @@ def GP_predict(X,Y,C_inv,x_new,theta):
     cov = (kernel(x_new,x_new,theta)+noise) - K.T @ C_inv @ K
     return mu , cov
 
+# SVM
+### read data
+def read_num(filename):
+    f = open(os.path.join("data",filename), newline='')
+    rows = csv.reader(f,quoting=csv.QUOTE_NONNUMERIC)
+    ret = []
+    i = 0
+    for d in rows:
+        ret.append(d)
+    ret = np.array(ret)
+    return ret
+def SVM(X,Y):
+    model = svm.svm_train(Y.reshape(len(Y)),X)
+    return
+
 ### reaa data 
-f = open("data/input.data","r")
-X = []
-Y = []
-for d in f:
-    d = d.strip()
-    d = d.split(" ")
-    X.append(float(d[0]))
-    Y.append(float(d[1]))
-X = np.array(X)
-Y = np.array(Y)
-print(log_li(X,Y))
+X , Y = read_point()
+X_train , Y_train = read_num("X_train.csv") , read_num("Y_train.csv")
+print(X_train.shape,Y_train.shape)
+SVM(X_train,Y_train)
 theta = optimization(X,Y)
 GP(X,Y,theta)
 plt.show()
