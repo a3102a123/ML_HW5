@@ -5,7 +5,8 @@ import scipy.spatial.distance as npd
 from scipy.optimize import minimize
 import csv
 import os
-import libsvm.svmutil as svm
+from libsvm.svmutil import *
+import sys
 
 # global variable
 beta = 5
@@ -98,15 +99,68 @@ def read_num(filename):
         ret.append(d)
     ret = np.array(ret)
     return ret
-def SVM(X,Y):
-    model = svm.svm_train(Y.reshape(len(Y)),X)
+
+def change_label(Y,num):
+    new_Y = (Y == num).astype(float)
+    new_Y[Y != num] = -1
+    return new_Y
+
+def SVM(X_train,Y_train,X_test,Y_test):
+    Y_train = Y_train.reshape(len(Y_train))
+    Y_test = Y_test.reshape(len(Y_test))
+    # s : the type of SVM , 0 : C-SVC , 1 : nu-SVC , 2 : one-class SVM
+    # t : the type of kernel , 0 : linear , 1 : polynomial , 2 : RBF(radial basis function)
+    for i in range(1,2):
+        Y_sin_train = change_label(Y_train,i)
+        Y_sin_test = change_label(Y_test,i)
+        print(Y_sin_test)
+        model_sin = svm_train(Y_sin_train,X_train,"-s 2 -t 0 -h 0")
+        r_label , r_acc, r_val = svm_predict(Y_sin_test,X_test,model_sin)
+        r_label = np.array(r_label)
+        print(r_label,Y_sin_test)
+        print_SVM_result(r_label,Y_sin_test,1,i-1)
     return
+    model_mul = svm_train(Y_train,X_train,"-s 0 -t 0")
+    r_label , r_acc, r_val = svm_predict(Y_test,X_test,model_mul)
+    r_label = np.array(r_label)
+    true_table = (r_label == Y_test)
+    print(r_acc)
+    print("{} / {}".format(true_table.sum(),len(Y_test)))
+    # the label of this MNIST begins from 1 to 5
+    for i in range(1,6):
+        print_SVM_result(r_label,Y_test,i,i-1)
+
+# D1 : prediction , D2 : ground turth
+def print_SVM_result(D1,D2,label,num_str):
+
+    D1 = (D1 == label)
+    D2 = (D2 == label)
+    inv_D1 = np.invert(D1)
+    inv_D2 = np.invert(D2)
+    TP = np.logical_and(D1,D2).sum()
+    FP = np.logical_and(D1,inv_D2).sum()
+    FN = np.logical_and(inv_D1,D2).sum()
+    TN = np.logical_and(inv_D1,inv_D2).sum()
+    
+    label = num_str
+    print("Confusion Matrix {}:".format(label))
+    print("{:15}{:^20}{:^20}".format("","Predict number {} ".format(label),"Predict not number {}".format(label)))
+    print("{:15}{:^20}{:^20}".format("Is number {}".format(label),TP,FN))
+    print("{:15}{:^20}{:^20}".format("Is not number {}".format(label),FP,TN))
+    print("")
+    print("Sensitivity (Successfully predict number {}): {:.5}".format(label,TP / (TP + FN)))
+    print("Specificity (Successfully predict not number {}): {:.5}".format(label,TN / (FP + TN)))
+    print("")
+    print("----------------------------------------")
 
 ### reaa data 
 X , Y = read_point()
 X_train , Y_train = read_num("X_train.csv") , read_num("Y_train.csv")
-print(X_train.shape,Y_train.shape)
-SVM(X_train,Y_train)
+X_test , Y_test = read_num("X_test.csv") , read_num("Y_test.csv")
+classes = np.unique(Y_train)
+print(X_train.shape,Y_train.shape ,"\n" , X_test.shape , Y_test.shape)
+SVM(X_train,Y_train,X_test,Y_test)
+sys.exit()
 theta = optimization(X,Y)
 GP(X,Y,theta)
 plt.show()
