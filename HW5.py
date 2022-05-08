@@ -10,6 +10,9 @@ import sys
 
 # global variable
 beta = 5
+kernel_folder = "K1"
+new_kernel_folder = "K1"
+is_new_file = True
 
 # Gaussian Process
 ### read data
@@ -105,11 +108,51 @@ def change_label(Y,num):
     new_Y[Y != num] = -1
     return new_Y
 
+def SVM_kernel(a,b):
+    # according to the origin setting of libsvm
+    gamma = 1 / len(a)
+    rbf = np.exp(-gamma * np.linalg.norm(a - b) ** 2)
+    a = a / np.linalg.norm(a)
+    b = b / np.linalg.norm(b)
+    linear = np.dot(a,b)
+    return (rbf + linear) / 2
+
+def X_to_kernel(X1,X2):
+    K = np.zeros((len(X1),len(X2)))
+    for i , x1 in enumerate(X1):
+        for j , x2 in enumerate(X2):
+            K[i,j] = SVM_kernel(x1,x2)
+    return K
+
+def save_SVM_kernel(filename,X1,X2,Y):
+    K = X_to_kernel(X1,X2)
+    np.save(filename + "X",K)
+    np.save(filename + "Y",Y)
+
+def load_SVM_kernel(filename):
+    K = np.load(filename + "X" + ".npy")
+    Y = np.load(filename + "Y" + ".npy")
+    return K,Y
+
 def SVM(X_train,Y_train,X_test,Y_test):
-    Y_train = Y_train.reshape(len(Y_train))
-    Y_test = Y_test.reshape(len(Y_test))
+    # KX_train = X_to_kernel(X_train[0:20,:],X_train[0:20,:])
+    # KX_test = X_to_kernel(X_test[0:20,:],X_train[0:20,:])
+    KX_train,Y_train = load_SVM_kernel(os.path.join(kernel_folder,"train"))
+    KX_test,Y_test = load_SVM_kernel(os.path.join(kernel_folder,"test"))
+    print("Kernel data prepared done")
     # s : the type of SVM , 0 : C-SVC , 1 : nu-SVC , 2 : one-class SVM
     # t : the type of kernel , 0 : linear , 1 : polynomial , 2 : RBF(radial basis function)
+    # --- 4 : precomputed kernel
+    
+    # user defined kernel multi-class SVM
+    prob  = svm_problem(Y_train, KX_train, isKernel=True)
+    param = svm_parameter("-s 0 -t 4")
+    model_user = svm_train(prob,param)
+    r_label , r_acc, r_val = svm_predict(Y_test,KX_test,model_user)
+    print(r_acc , r_label)
+    return
+
+    # one-class SVM 
     for i in range(1,2):
         Y_sin_train = change_label(Y_train,i)
         Y_sin_test = change_label(Y_test,i)
@@ -120,6 +163,7 @@ def SVM(X_train,Y_train,X_test,Y_test):
         print(r_label,Y_sin_test)
         print_SVM_result(r_label,Y_sin_test,1,i-1)
     return
+    # multi-class SVM
     model_mul = svm_train(Y_train,X_train,"-s 0 -t 0")
     r_label , r_acc, r_val = svm_predict(Y_test,X_test,model_mul)
     r_label = np.array(r_label)
@@ -153,11 +197,40 @@ def print_SVM_result(D1,D2,label,num_str):
     print("")
     print("----------------------------------------")
 
+def test_kernel(X,Y,classes):
+    c_num = len(classes)
+    img = np.zeros((c_num,784))
+    val = np.zeros((c_num,c_num))
+    for i,c in enumerate(classes):
+        idx = np.argmax(Y == c)
+        img[i] = X[idx]
+
+    for i in range(c_num):
+        for j in range(c_num):
+            val[i,j] = SVM_kernel(img[i],img[j])
+    
+    print(val)
+    plt.imshow(val)
+    plt.show()
+
 ### reaa data 
 X , Y = read_point()
 X_train , Y_train = read_num("X_train.csv") , read_num("Y_train.csv")
 X_test , Y_test = read_num("X_test.csv") , read_num("Y_test.csv")
+Y_train = Y_train.reshape(len(Y_train))
+Y_test = Y_test.reshape(len(Y_test))
 classes = np.unique(Y_train)
+### pre-compute kernel value
+if is_new_file:
+    if not os.path.exists(new_kernel_folder):
+        os.mkdir(new_kernel_folder)
+        save_SVM_kernel(os.path.join(new_kernel_folder , "train") , X_train,X_train,Y_train)
+        save_SVM_kernel(os.path.join(new_kernel_folder , "test") , X_test,X_test,Y_test)
+    else:
+        print("Pre-computed Kernel file already exist!")
+
+# test_kernel(X_train,Y_train,classes)
+# sys.exit()
 print(X_train.shape,Y_train.shape ,"\n" , X_test.shape , Y_test.shape)
 SVM(X_train,Y_train,X_test,Y_test)
 sys.exit()
