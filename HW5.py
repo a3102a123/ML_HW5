@@ -1,3 +1,4 @@
+from matplotlib import image
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy
@@ -7,12 +8,18 @@ import csv
 import os
 from libsvm.svmutil import *
 import sys
+import time
 
 # global variable
 beta = 5
 kernel_folder = "K1"
 new_kernel_folder = "K1"
+img_dir = "image"
 is_new_file = True
+
+is_test = False
+test_num = 50
+gamma = 0
 
 # Gaussian Process
 ### read data
@@ -110,18 +117,28 @@ def change_label(Y,num):
 
 def SVM_kernel(a,b):
     # according to the origin setting of libsvm
-    gamma = 1 / len(a)
+    global gamma
     rbf = np.exp(-gamma * np.linalg.norm(a - b) ** 2)
     a = a / np.linalg.norm(a)
     b = b / np.linalg.norm(b)
     linear = np.dot(a,b)
+    return rbf*linear
     return (rbf + linear) / 2
 
+pre_name = 0
+name = "_mul"
 def X_to_kernel(X1,X2):
-    K = np.zeros((len(X1),len(X2)))
+    global pre_name
+    K = np.zeros((len(X1),len(X2) + 1))
+    K[:,0] = np.array(range(1,len(X1)+1))
     for i , x1 in enumerate(X1):
         for j , x2 in enumerate(X2):
-            K[i,j] = SVM_kernel(x1,x2)
+                K[i,j+1] = SVM_kernel(x1,x2)
+    if is_test:
+        plt.imshow(K[:,1:])
+        # plt.show()
+        plt.savefig(os.path.join(img_dir,"Kernel{}{}".format(name,pre_name)))
+        pre_name +=1
     return K
 
 def save_SVM_kernel(filename,X1,X2,Y):
@@ -137,8 +154,28 @@ def load_SVM_kernel(filename):
 def SVM(X_train,Y_train,X_test,Y_test):
     # KX_train = X_to_kernel(X_train[0:20,:],X_train[0:20,:])
     # KX_test = X_to_kernel(X_test[0:20,:],X_train[0:20,:])
-    KX_train,Y_train = load_SVM_kernel(os.path.join(kernel_folder,"train"))
-    KX_test,Y_test = load_SVM_kernel(os.path.join(kernel_folder,"test"))
+    if is_test:
+        sX_train = []
+        sY_train = []
+        sX_test = []
+        sY_test = []
+        for i in range(5):
+            for j in range(test_num):
+                sX_train.append(X_train[i*1000 + j])
+                sY_train.append(Y_train[i*1000 + j])
+                if test_num%2 == 0:
+                    sX_test.append(X_test[i*500 + j])
+                    sY_test.append(Y_test[i*500 + j])
+        sX_train = np.array(sX_train)
+        sY_train = np.array(sY_train)
+        sX_test = np.array(sX_test)
+        sY_test = np.array(sY_test)
+
+        KX_train,Y_train = X_to_kernel(sX_train,sX_train) , sY_train
+        KX_test,Y_test = X_to_kernel(sX_test,sX_train) , sY_test
+    else:
+        KX_train,Y_train = load_SVM_kernel(os.path.join(kernel_folder,"train"))
+        KX_test,Y_test = load_SVM_kernel(os.path.join(kernel_folder,"test"))
     print("Kernel data prepared done")
     # s : the type of SVM , 0 : C-SVC , 1 : nu-SVC , 2 : one-class SVM
     # t : the type of kernel , 0 : linear , 1 : polynomial , 2 : RBF(radial basis function)
@@ -146,10 +183,10 @@ def SVM(X_train,Y_train,X_test,Y_test):
     
     # user defined kernel multi-class SVM
     prob  = svm_problem(Y_train, KX_train, isKernel=True)
-    param = svm_parameter("-s 0 -t 4")
+    param = svm_parameter("-s 0 -t 4 -q")
     model_user = svm_train(prob,param)
     r_label , r_acc, r_val = svm_predict(Y_test,KX_test,model_user)
-    print(r_acc , r_label)
+    # print(r_acc , r_label)
     return
 
     # one-class SVM 
@@ -220,15 +257,20 @@ X_test , Y_test = read_num("X_test.csv") , read_num("Y_test.csv")
 Y_train = Y_train.reshape(len(Y_train))
 Y_test = Y_test.reshape(len(Y_test))
 classes = np.unique(Y_train)
+gamma = 1 / len(X_train[0])
 ### pre-compute kernel value
-if is_new_file:
-    if not os.path.exists(new_kernel_folder):
-        os.mkdir(new_kernel_folder)
-        save_SVM_kernel(os.path.join(new_kernel_folder , "train") , X_train,X_train,Y_train)
-        save_SVM_kernel(os.path.join(new_kernel_folder , "test") , X_test,X_test,Y_test)
-    else:
-        print("Pre-computed Kernel file already exist!")
-
+strat_time = time.time()
+if is_new_file and not os.path.exists(new_kernel_folder):
+    os.mkdir(new_kernel_folder)
+    save_SVM_kernel(os.path.join(new_kernel_folder , "train") , X_train,X_train,Y_train)
+    save_SVM_kernel(os.path.join(new_kernel_folder , "test") , X_test,X_test,Y_test)
+else:
+    print("Pre-computed Kernel file already exist!")
+end_time = time.time()
+time_c= end_time - strat_time
+min_c = int(time_c / 60)
+time_c = time_c - min_c * 60
+print('Total time cost : {}m , {:.3f}s'.format(min_c,time_c))
 # test_kernel(X_train,Y_train,classes)
 # sys.exit()
 print(X_train.shape,Y_train.shape ,"\n" , X_test.shape , Y_test.shape)
