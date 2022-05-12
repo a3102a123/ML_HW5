@@ -12,8 +12,8 @@ import time
 
 # global variable
 beta = 5
-kernel_folder = "K1"
-new_kernel_folder = "K1"
+kernel_folder = "K_add"
+new_kernel_folder = "K_add"
 img_dir = "image"
 is_new_file = True
 
@@ -122,7 +122,7 @@ def SVM_kernel(a,b):
     a = a / np.linalg.norm(a)
     b = b / np.linalg.norm(b)
     linear = np.dot(a,b)
-    return rbf*linear
+    # return rbf*linear
     return (rbf + linear) / 2
 
 pre_name = 0
@@ -180,13 +180,31 @@ def SVM(X_train,Y_train,X_test,Y_test):
     # s : the type of SVM , 0 : C-SVC , 1 : nu-SVC , 2 : one-class SVM
     # t : the type of kernel , 0 : linear , 1 : polynomial , 2 : RBF(radial basis function)
     # --- 4 : precomputed kernel
+    # -v k : k-fold cross validation
     
     # user defined kernel multi-class SVM
     prob  = svm_problem(Y_train, KX_train, isKernel=True)
     param = svm_parameter("-s 0 -t 4 -q")
-    model_user = svm_train(prob,param)
-    r_label , r_acc, r_val = svm_predict(Y_test,KX_test,model_user)
+    # model_user = svm_train(prob,param)
+    # r_label , r_acc, r_val = svm_predict(Y_test,KX_test,model_user)
     # print(r_acc , r_label)
+    # return
+
+
+    # multi-class SVM
+    for m in range(1):
+        for c in range(1,5):
+            model_mul = svm_train(Y_train,X_train,"-s 0 -t {} -c {} -v 2 -q".format(m,c))
+
+    return
+    r_label , r_acc, r_val = svm_predict(Y_test,X_test,model_mul)
+    r_label = np.array(r_label)
+    true_table = (r_label == Y_test)
+    print(r_acc)
+    print("{} / {}".format(true_table.sum(),len(Y_test)))
+    # the label of this MNIST begins from 1 to 5
+    for i in range(1,6):
+        print_SVM_result(r_label,Y_test,i,i-1)
     return
 
     # one-class SVM 
@@ -200,16 +218,6 @@ def SVM(X_train,Y_train,X_test,Y_test):
         print(r_label,Y_sin_test)
         print_SVM_result(r_label,Y_sin_test,1,i-1)
     return
-    # multi-class SVM
-    model_mul = svm_train(Y_train,X_train,"-s 0 -t 0")
-    r_label , r_acc, r_val = svm_predict(Y_test,X_test,model_mul)
-    r_label = np.array(r_label)
-    true_table = (r_label == Y_test)
-    print(r_acc)
-    print("{} / {}".format(true_table.sum(),len(Y_test)))
-    # the label of this MNIST begins from 1 to 5
-    for i in range(1,6):
-        print_SVM_result(r_label,Y_test,i,i-1)
 
 # D1 : prediction , D2 : ground turth
 def print_SVM_result(D1,D2,label,num_str):
@@ -263,7 +271,7 @@ strat_time = time.time()
 if is_new_file and not os.path.exists(new_kernel_folder):
     os.mkdir(new_kernel_folder)
     save_SVM_kernel(os.path.join(new_kernel_folder , "train") , X_train,X_train,Y_train)
-    save_SVM_kernel(os.path.join(new_kernel_folder , "test") , X_test,X_test,Y_test)
+    save_SVM_kernel(os.path.join(new_kernel_folder , "test") , X_test,X_train,Y_test)
 else:
     print("Pre-computed Kernel file already exist!")
 end_time = time.time()
